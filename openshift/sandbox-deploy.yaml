@@ -68,12 +68,12 @@ spec:
                   name: rabbitmq-credentials
                   key: password
             - name: RABBITMQ_ENABLED_PLUGINS_FILE
-              value: /etc/rabbitmq/enabled_plugins
+              value: /tmp/enabled_plugins
           command:
             - sh
             - -c
             - |
-              echo '[rabbitmq_management,rabbitmq_prometheus].' > /etc/rabbitmq/enabled_plugins
+              echo '[rabbitmq_management,rabbitmq_prometheus].' > /tmp/enabled_plugins
               rabbitmq-server
           resources:
             requests:
@@ -194,7 +194,7 @@ spec:
             httpGet:
               path: /ready
               port: 8000
-            initialDelaySeconds: 10
+            initialDelaySeconds: 60
             periodSeconds: 10
           volumeMounts:
             - name: tmp
