@@ -155,8 +155,7 @@ spec:
         runAsNonRoot: true
       containers:
         - name: devops-api
-          # Substitua pela sua imagem no ghcr.io ou quay.io
-          image: ghcr.io/SUA_ORG/devops-api:latest
+          image: "ghcr.io/f1costa/devops-api:IMAGE_TAG_PLACEHOLDER"
           imagePullPolicy: Always
           ports:
             - name: http
