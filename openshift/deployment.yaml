@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: devops-api
-  namespace: devops-project
+  namespace: phillk8s-dev
   labels:
     app: devops-api
     version: IMAGE_TAG_PLACEHOLDER
@@ -40,7 +40,7 @@ spec:
 
       containers:
         - name: devops-api
-          image: ghcr.io/sua-org/devops-api:IMAGE_TAG_PLACEHOLDER
+          image: "ghcr.io/sua-org/devops-api:IMAGE_TAG_PLACEHOLDER"
           imagePullPolicy: Always
           ports:
             - name: http

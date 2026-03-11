@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: devops-project
+  name: phillk8s-dev
   labels:
     app.kubernetes.io/managed-by: ansible
     environment: production
