@@ -67,14 +67,6 @@ spec:
                 secretKeyRef:
                   name: rabbitmq-credentials
                   key: password
-            - name: RABBITMQ_ENABLED_PLUGINS_FILE
-              value: /tmp/enabled_plugins
-          command:
-            - sh
-            - -c
-            - |
-              echo '[rabbitmq_management,rabbitmq_prometheus].' > /tmp/enabled_plugins
-              rabbitmq-server
           resources:
             requests:
               cpu:    "100m"
@@ -89,13 +81,15 @@ spec:
           livenessProbe:
             exec:
               command: ["rabbitmq-diagnostics", "-q", "ping"]
-            initialDelaySeconds: 40
+            initialDelaySeconds: 60
             periodSeconds: 30
+            failureThreshold: 5
           readinessProbe:
             exec:
               command: ["rabbitmq-diagnostics", "-q", "check_running"]
-            initialDelaySeconds: 20
+            initialDelaySeconds: 40
             periodSeconds: 10
+            failureThreshold: 5
           volumeMounts:
             - name: rabbitmq-data
               mountPath: /var/lib/rabbitmq
