@@ -1,0 +1,133 @@
+---
+# ── Service ─────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: devops-api
+  namespace: devops-project
+  labels:
+    app: devops-api
+    # Label necessária para o ServiceMonitor selecionar este serviço
+    monitoring: prometheus
+spec:
+  selector:
+    app: devops-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+      protocol: TCP
+  type: ClusterIP
+
+---
+# ── Route (OpenShift) ────────────────────────────────────────────────
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: devops-api
+  namespace: devops-project
+  labels:
+    app: devops-api
+spec:
+  to:
+    kind: Service
+    name: devops-api
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None
+
+---
+# ── HorizontalPodAutoscaler ──────────────────────────────────────────
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: devops-api-hpa
+  namespace: devops-project
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: devops-api
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+
+---
+# ── ServiceMonitor (Prometheus Operator) ────────────────────────────
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: devops-api-monitor
+  namespace: devops-project
+  labels:
+    app: devops-api
+spec:
+  selector:
+    matchLabels:
+      monitoring: prometheus
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+
+---
+# ── PrometheusRule — alertas ─────────────────────────────────────────
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: devops-api-alerts
+  namespace: devops-project
+spec:
+  groups:
+    - name: devops-api.rules
+      interval: 30s
+      rules:
+        - alert: APIHighErrorRate
+          expr: |
+            rate(http_requests_total{status_code=~"5.."}[5m])
+            / rate(http_requests_total[5m]) > 0.05
+          for: 2m
+          labels:
+            severity: critical
+            team: devops
+          annotations:
+            summary: "Alta taxa de erros 5xx na devops-api"
+            description: "Taxa de erros acima de 5% nos últimos 5 minutos."
+
+        - alert: RabbitMQDisconnected
+          expr: rabbitmq_connection_status == 0
+          for: 1m
+          labels:
+            severity: warning
+            team: devops
+          annotations:
+            summary: "devops-api sem conexão com RabbitMQ"
+            description: "A aplicação não consegue se conectar ao broker."
+
+        - alert: PodCrashLooping
+          expr: |
+            increase(kube_pod_container_status_restarts_total{
+              namespace="devops-project",container="devops-api"
+            }[15m]) > 3
+          for: 0m
+          labels:
+            severity: critical
+            team: devops
+          annotations:
+            summary: "Pod da devops-api em CrashLoopBackOff"

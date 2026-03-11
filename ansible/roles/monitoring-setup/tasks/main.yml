@@ -1,0 +1,58 @@
+---
+# ── Role: monitoring-setup — tasks/main.yml ─────────────────────────
+
+- name: Aplicar ServiceMonitor e PrometheusRule
+  command: >
+    oc apply -f {{ playbook_dir }}/../openshift/service-route-hpa.yaml
+    --namespace {{ openshift_namespace }}
+  changed_when: false
+
+- name: Verificar se o Prometheus Operator está instalado
+  command: >
+    oc get crd servicemonitors.monitoring.coreos.com
+  register: prom_crd
+  failed_when: false
+  changed_when: false
+
+- name: Avisar se Prometheus Operator não encontrado
+  debug:
+    msg: >
+      ⚠️  Prometheus Operator não encontrado. 
+      Instale via OperatorHub antes de aplicar ServiceMonitors.
+  when: prom_crd.rc != 0
+
+# ── Dynatrace OneAgent DaemonSet ─────────────────────────────────────
+- name: Criar Secret do Dynatrace API Token
+  command: >
+    oc create secret generic dynatrace-env
+    --from-literal=DT_API_TOKEN={{ dynatrace_api_token }}
+    --from-literal=DT_ENV_URL={{ dynatrace_env_url }}
+    --namespace {{ openshift_namespace }}
+    --dry-run=client -o yaml | oc apply -f -
+  when:
+    - dynatrace_api_token is defined
+    - dynatrace_env_url is defined
+  no_log: true
+  changed_when: true
+
+- name: Aplicar anotação Dynatrace no Deployment
+  command: >
+    oc annotate deployment/devops-api
+    metrics.dynatrace.com/scrape="true"
+    metrics.dynatrace.com/port="8000"
+    metrics.dynatrace.com/path="/metrics"
+    --namespace {{ openshift_namespace }}
+    --overwrite
+  when: dynatrace_enabled | default(true) | bool
+  changed_when: true
+
+- name: Exibir instruções para dashboard Dynatrace
+  debug:
+    msg: |
+      📊 Dynatrace configurado!
+      Próximos passos:
+      1. Acesse {{ dynatrace_env_url | default('seu-ambiente.live.dynatrace.com') }}
+      2. Navegue em: Observe → Metrics → devops-api
+      3. Crie SLO: Settings → SLOs → Create SLO
+         - Métrica: http_requests_total{status_code!~"5.."}
+         - Target: 99.5%

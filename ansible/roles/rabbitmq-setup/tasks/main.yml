@@ -1,0 +1,51 @@
+---
+# ── Role: rabbitmq-setup — tasks/main.yml ───────────────────────────
+
+- name: Aplicar manifests do RabbitMQ
+  command: >
+    oc apply -f {{ playbook_dir }}/../openshift/rabbitmq.yaml
+    --namespace {{ openshift_namespace }}
+  register: rmq_result
+  changed_when: "'configured' in rmq_result.stdout or 'created' in rmq_result.stdout"
+
+- name: Aguardar RabbitMQ ficar pronto
+  command: >
+    oc rollout status statefulset/rabbitmq
+    --namespace {{ openshift_namespace }}
+    --timeout=3m
+  changed_when: false
+
+- name: Verificar porta AMQP
+  command: >
+    oc exec statefulset/rabbitmq
+    --namespace {{ openshift_namespace }}
+    -- rabbitmq-diagnostics -q ping
+  register: rmq_ping
+  retries: 5
+  delay: 10
+  until: rmq_ping.rc == 0
+  changed_when: false
+
+- name: Criar filas necessárias via API de Management
+  uri:
+    url: "http://rabbitmq.{{ openshift_namespace }}.svc.cluster.local:15672/api/queues/%2F/{{ item }}"
+    method: PUT
+    user: "{{ rabbitmq_admin_user | default('admin') }}"
+    password: "{{ rabbitmq_admin_password }}"
+    body_format: json
+    body:
+      durable: true
+      arguments:
+        x-message-ttl: 86400000
+        x-dead-letter-exchange: "dlx.{{ item }}"
+    status_code: [201, 204]
+    force_basic_auth: true
+  loop:
+    - orders
+    - events
+  delegate_to: "{{ groups['openshift_nodes'][0] }}"
+  no_log: true
+
+- name: Exibir status do RabbitMQ
+  debug:
+    msg: "RabbitMQ operacional — filas criadas: orders, events"

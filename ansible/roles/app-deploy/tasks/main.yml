@@ -1,0 +1,59 @@
+---
+# ── Role: app-deploy — tasks/main.yml ───────────────────────────────
+
+- name: Garantir que o namespace existe
+  command: >
+    oc apply -f {{ playbook_dir }}/../openshift/00-namespace.yaml
+  changed_when: false
+
+- name: Verificar se o Secret de credenciais RabbitMQ existe
+  command: >
+    oc get secret rabbitmq-credentials
+    --namespace {{ openshift_namespace }}
+  register: secret_check
+  failed_when: false
+  changed_when: false
+
+- name: Falhar se Secret de RabbitMQ não existe
+  fail:
+    msg: >
+      O Secret 'rabbitmq-credentials' não foi encontrado no namespace
+      {{ openshift_namespace }}. Crie-o antes de executar este playbook.
+  when: secret_check.rc != 0
+
+- name: Substituir IMAGE_TAG_PLACEHOLDER nos manifests
+  replace:
+    path: "{{ item }}"
+    regexp: "IMAGE_TAG_PLACEHOLDER"
+    replace: "{{ deploy_image_tag }}"
+  loop:
+    - "{{ playbook_dir }}/../openshift/deployment.yaml"
+  delegate_to: localhost
+
+- name: Aplicar manifests do Deployment
+  command: >
+    oc apply -f {{ playbook_dir }}/../openshift/deployment.yaml
+    --namespace {{ openshift_namespace }}
+  register: deploy_result
+  changed_when: "'configured' in deploy_result.stdout or 'created' in deploy_result.stdout"
+
+- name: Aplicar Service, Route e HPA
+  command: >
+    oc apply -f {{ playbook_dir }}/../openshift/service-route-hpa.yaml
+    --namespace {{ openshift_namespace }}
+  register: svc_result
+  changed_when: "'configured' in svc_result.stdout or 'created' in svc_result.stdout"
+
+- name: Configurar variáveis de ambiente Dynatrace
+  command: >
+    oc set env deployment/devops-api
+    DT_RELEASE_VERSION={{ deploy_image_tag }}
+    DT_RELEASE_STAGE={{ deploy_env }}
+    DT_RELEASE_PRODUCT=devops-api
+    --namespace {{ openshift_namespace }}
+  when: dynatrace_enabled | default(true) | bool
+  changed_when: true
+
+- name: Log do resultado do deployment
+  debug:
+    msg: "Deployment aplicado — tag: {{ deploy_image_tag }}, env: {{ deploy_env }}"

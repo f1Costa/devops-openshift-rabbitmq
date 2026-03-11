@@ -1,0 +1,71 @@
+---
+# ────────────────────────────────────────────────────────────────────
+# Playbook: deploy.yml
+# Descrição: Implanta a devops-api no OpenShift e configura
+#            o ambiente completo (RabbitMQ + Monitoramento).
+# Uso:
+#   ansible-playbook playbooks/deploy.yml \
+#     -i inventory/hosts.ini \
+#     -e "image_tag=sha-abc1234 app_env=staging"
+# ────────────────────────────────────────────────────────────────────
+- name: Deploy devops-api to OpenShift
+  hosts: openshift_nodes
+  gather_facts: true
+  become: false
+
+  vars:
+    image_tag: latest
+    app_env: production
+    openshift_namespace: devops-project
+    dynatrace_enabled: true
+
+  pre_tasks:
+    - name: Verificar conectividade com o cluster OpenShift
+      command: oc whoami
+      register: oc_whoami
+      changed_when: false
+      failed_when: oc_whoami.rc != 0
+
+    - name: Exibir usuário autenticado
+      debug:
+        msg: "Autenticado como: {{ oc_whoami.stdout }}"
+
+  roles:
+    - role: app-deploy
+      vars:
+        deploy_image_tag: "{{ image_tag }}"
+        deploy_env: "{{ app_env }}"
+
+    - role: rabbitmq-setup
+      when: setup_rabbitmq | default(true) | bool
+
+    - role: monitoring-setup
+      when: setup_monitoring | default(true) | bool
+
+  post_tasks:
+    - name: Aguardar rollout completar
+      command: >
+        oc rollout status deployment/devops-api
+        --namespace {{ openshift_namespace }}
+        --timeout=5m
+      register: rollout_status
+      changed_when: false
+
+    - name: Verificar health da aplicação
+      uri:
+        url: "{{ app_base_url }}/health"
+        method: GET
+        status_code: 200
+        timeout: 30
+      register: health_result
+      retries: 5
+      delay: 10
+      until: health_result.status == 200
+
+    - name: Exibir resultado do deploy
+      debug:
+        msg: |
+          ✅ Deploy concluído com sucesso!
+          Versão: {{ image_tag }}
+          Ambiente: {{ app_env }}
+          Health: {{ health_result.json.status }}

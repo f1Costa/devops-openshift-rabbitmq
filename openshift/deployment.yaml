@@ -1,0 +1,107 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: devops-api
+  namespace: devops-project
+  labels:
+    app: devops-api
+    version: IMAGE_TAG_PLACEHOLDER
+    app.kubernetes.io/name: devops-api
+    app.kubernetes.io/component: api
+  annotations:
+    # Dynatrace: instrução automática via OneAgent
+    instrumentation.opentelemetry.io/inject-python: "true"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: devops-api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: devops-api
+        version: IMAGE_TAG_PLACEHOLDER
+      annotations:
+        # Prometheus scrape
+        prometheus.io/scrape: "true"
+        prometheus.io/port:   "8000"
+        prometheus.io/path:   "/metrics"
+    spec:
+      # OpenShift SCC: usuário não-root obrigatório
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: devops-api
+          image: ghcr.io/sua-org/devops-api:IMAGE_TAG_PLACEHOLDER
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+
+          env:
+            - name: APP_ENV
+              value: production
+            - name: APP_VERSION
+              value: IMAGE_TAG_PLACEHOLDER
+            - name: RABBITMQ_URL
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-credentials
+                  key: url
+
+          # Dynatrace OneAgent — variáveis de ambiente
+          envFrom:
+            - secretRef:
+                name: dynatrace-env
+                optional: true
+
+          resources:
+            requests:
+              cpu:    "100m"
+              memory: "128Mi"
+            limits:
+              cpu:    "500m"
+              memory: "512Mi"
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+
+          # Liveness: reinicia o container se travar
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
+
+          # Readiness: remove do balanceador enquanto dependências não estiverem ok
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+
+      volumes:
+        - name: tmp
+          emptyDir: {}
+
+      terminationGracePeriodSeconds: 30
