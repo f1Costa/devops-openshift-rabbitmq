@@ -139,6 +139,8 @@ metadata:
     instrumentation.opentelemetry.io/inject-python: "true"
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: devops-api
