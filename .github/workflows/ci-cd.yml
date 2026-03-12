@@ -128,13 +128,14 @@ jobs:
             -H "Content-Type: application/json" \
             -d '{
               "eventType": "CUSTOM_DEPLOYMENT",
-              "title": "CI Build: devops-api",
+              "title": "Deploy devops-api",
+              "entitySelector": "type(SERVICE),tag(devops-api)",
               "properties": {
-                "git_commit":  "${{ github.sha }}",
-                "git_branch":  "${{ github.ref_name }}",
-                "image_tag":   "${{ steps.meta.outputs.version }}",
-                "triggered_by":"${{ github.actor }}",
-                "pipeline":    "github-actions"
+                "dt.event.deployment.name": "devops-api",
+                "dt.event.deployment.version": "${{ github.sha }}",
+                "dt.event.deployment.release_stage": "production",
+                "git_branch": "${{ github.ref_name }}",
+                "triggered_by": "${{ github.actor }}"
               }
             }'
 
@@ -253,23 +254,21 @@ jobs:
       - name: Notify Dynatrace — Deployment Event (Production)
         continue-on-error: true
         run: |
-          DEPLOY_TIME=$(date -u +%s%3N)
           curl -sf -X POST "${{ env.DYNATRACE_ENV_URL }}/api/v2/events/ingest" \
             -H "Authorization: Api-Token ${{ secrets.DYNATRACE_API_TOKEN }}" \
             -H "Content-Type: application/json" \
-            -d "{
-              \"eventType\": \"CUSTOM_DEPLOYMENT\",
-              \"title\": \"Deploy: devops-api → production\",
-              \"startTime\": ${DEPLOY_TIME},
-              \"endTime\":   $((DEPLOY_TIME + 900000)),
-              \"properties\": {
-                \"environment\":  \"production\",
-                \"version\":      \"${{ needs.build.outputs.image-tag }}\",
-                \"git_commit\":   \"${{ github.sha }}\",
-                \"triggered_by\": \"${{ github.actor }}\",
-                \"remediation\":  \"oc rollout undo deployment/devops-api\"
+            -d '{
+              "eventType": "CUSTOM_DEPLOYMENT",
+              "title": "Deploy devops-api",
+              "entitySelector": "type(SERVICE),tag(devops-api)",
+              "properties": {
+                "dt.event.deployment.name": "devops-api",
+                "dt.event.deployment.version": "${{ github.sha }}",
+                "dt.event.deployment.release_stage": "production",
+                "git_branch": "${{ github.ref_name }}",
+                "triggered_by": "${{ github.actor }}"
               }
-            }"
+            }'
 
   # ──────────────────────────────────────────────────────────────────
   # JOB 5 — Smoke test pós-deploy
