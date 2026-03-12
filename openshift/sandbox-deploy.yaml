@@ -69,6 +69,8 @@ spec:
                 secretKeyRef:
                   name: rabbitmq-credentials
                   key: password
+            - name: RABBITMQ_NODENAME
+              value: rabbit@localhost
           resources:
             requests:
               cpu:    "100m"
@@ -81,15 +83,15 @@ spec:
             capabilities:
               drop: ["ALL"]
           livenessProbe:
-            exec:
-              command: ["rabbitmq-diagnostics", "-q", "ping"]
-            initialDelaySeconds: 60
-            periodSeconds: 30
+            tcpSocket:
+              port: 5672
+            initialDelaySeconds: 30
+            periodSeconds: 20
             failureThreshold: 5
           readinessProbe:
-            exec:
-              command: ["rabbitmq-diagnostics", "-q", "check_running"]
-            initialDelaySeconds: 40
+            tcpSocket:
+              port: 5672
+            initialDelaySeconds: 25
             periodSeconds: 10
             failureThreshold: 5
           volumeMounts:
