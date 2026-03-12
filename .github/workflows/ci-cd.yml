@@ -129,13 +129,12 @@ jobs:
             -d '{
               "eventType": "CUSTOM_DEPLOYMENT",
               "title": "Deploy devops-api",
-              "entitySelector": "type(SERVICE),tag(devops-api)",
               "properties": {
-                "dt.event.deployment.name": "devops-api",
-                "dt.event.deployment.version": "${{ github.sha }}",
-                "dt.event.deployment.release_stage": "production",
+                "app_name": "devops-api",
+                "app_version": "${{ github.sha }}",
                 "git_branch": "${{ github.ref_name }}",
-                "triggered_by": "${{ github.actor }}"
+                "triggered_by": "${{ github.actor }}",
+                "environment": "production"
               }
             }'
 
@@ -260,13 +259,12 @@ jobs:
             -d '{
               "eventType": "CUSTOM_DEPLOYMENT",
               "title": "Deploy devops-api",
-              "entitySelector": "type(SERVICE),tag(devops-api)",
               "properties": {
-                "dt.event.deployment.name": "devops-api",
-                "dt.event.deployment.version": "${{ github.sha }}",
-                "dt.event.deployment.release_stage": "production",
+                "app_name": "devops-api",
+                "app_version": "${{ github.sha }}",
                 "git_branch": "${{ github.ref_name }}",
-                "triggered_by": "${{ github.actor }}"
+                "triggered_by": "${{ github.actor }}",
+                "environment": "production"
               }
             }'
 
