@@ -235,15 +235,16 @@ jobs:
 
       - name: Update image tag and apply manifests
         run: |
-          IMAGE_TAG=${{ needs.build.outputs.image-tag }}
+          IMAGE_TAG="sha-$(echo '${{ github.sha }}' | cut -c1-7)"
           sed -i "s|IMAGE_TAG_PLACEHOLDER|${IMAGE_TAG}|g" openshift/sandbox-deploy.yaml
           oc apply -f openshift/sandbox-deploy.yaml --namespace ${{ env.OPENSHIFT_NAMESPACE }}
+          oc rollout restart deployment/devops-api --namespace ${{ env.OPENSHIFT_NAMESPACE }}
 
       - name: Wait for rollout
         run: |
           oc rollout status deployment/devops-api \
             --namespace ${{ env.OPENSHIFT_NAMESPACE }} \
-            --timeout=5m
+            --timeout=8m
 
       # ── Dynatrace: abre janela de observação pós-deploy ───────
       - name: Notify Dynatrace — Deployment Event (Production)
