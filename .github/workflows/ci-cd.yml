@@ -121,7 +121,6 @@ jobs:
 
       # ── Notifica Dynatrace sobre o build ───────────────────────
       - name: Notify Dynatrace — Build Event
-        if: false
         run: |
           curl -sf -X POST "${{ env.DYNATRACE_ENV_URL }}/api/v2/events/ingest" \
             -H "Authorization: Api-Token ${{ secrets.DYNATRACE_API_TOKEN }}" \
@@ -251,7 +250,6 @@ jobs:
 
       # ── Dynatrace: abre janela de observação pós-deploy ───────
       - name: Notify Dynatrace — Deployment Event (Production)
-        if: false
         run: |
           DEPLOY_TIME=$(date -u +%s%3N)
           curl -sf -X POST "${{ env.DYNATRACE_ENV_URL }}/api/v2/events/ingest" \
