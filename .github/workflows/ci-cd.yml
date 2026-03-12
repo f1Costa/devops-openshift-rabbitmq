@@ -59,20 +59,12 @@ jobs:
             test-results.xml
             coverage.xml
 
-      # ── SonarQube Analysis ──────────────────────────────────────
-      # - name: SonarQube Scan
-      #   uses: SonarSource/sonarqube-scan-action@v2
-      #   env:
-      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      #    SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-      #  with:
-      #   args: >
-      #     -Dsonar.projectKey=devops-api
-      #     -Dsonar.sources=app
-      #     -Dsonar.tests=tests
-      #     -Dsonar.python.coverage.reportPaths=coverage.xml
-      #     -Dsonar.python.xunit.reportPath=test-results.xml
-      #     -Dsonar.qualitygate.wait=true
+      # ── SonarCloud Analysis ─────────────────────────────────────
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v2
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
 
   # ──────────────────────────────────────────────────────────────────
   # JOB 2 — Build & Push da imagem Docker
