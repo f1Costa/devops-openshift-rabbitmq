@@ -216,6 +216,8 @@ jobs:
       name: production
       url: https://devops-api.example.com
     if: always()
+    outputs:
+      app-url: ${{ steps.route.outputs.url }}
 
     steps:
       - name: Checkout
@@ -245,6 +247,15 @@ jobs:
           oc rollout status deployment/devops-api \
             --namespace ${{ env.OPENSHIFT_NAMESPACE }} \
             --timeout=8m
+
+      - name: Get Route URL
+        id: route
+        run: |
+          ROUTE=$(oc get route devops-api \
+            --namespace ${{ env.OPENSHIFT_NAMESPACE }} \
+            -o jsonpath='{.spec.host}')
+          echo "url=https://${ROUTE}" >> $GITHUB_OUTPUT
+          echo "Route URL: https://${ROUTE}"
 
       # ── Dynatrace: abre janela de observação pós-deploy ───────
       - name: Notify Dynatrace — Deployment Event (Production)
@@ -278,15 +289,11 @@ jobs:
     if: always() && needs.deploy-production.result == 'success'
 
     steps:
-      - name: Determine target URL
-        id: url
-        run: |
-          echo "url=https://devops-api.${{ secrets.OPENSHIFT_CLUSTER_DOMAIN }}" >> $GITHUB_OUTPUT
-
       - name: Health check
         run: |
+          URL="${{ needs.deploy-production.outputs.app-url }}"
           for i in 1 2 3 4 5; do
-            STATUS=$(curl -sf -o /dev/null -w "%{http_code}" ${{ steps.url.outputs.url }}/health)
+            STATUS=$(curl -sf -o /dev/null -w "%{http_code}" "${URL}/health")
             [ "$STATUS" == "200" ] && echo "✅ Health check passed" && exit 0
             echo "Attempt $i failed (HTTP $STATUS), retrying in 10s..."
             sleep 10
@@ -296,4 +303,4 @@ jobs:
 
       - name: Readiness check
         run: |
-          curl -sf ${{ steps.url.outputs.url }}/ready | jq .
+          curl -sf "${{ needs.deploy-production.outputs.app-url }}/ready" | jq .
