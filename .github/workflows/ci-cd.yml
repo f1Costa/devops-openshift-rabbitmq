@@ -293,3 +293,41 @@ jobs:
       - name: Readiness check
         run: |
           curl -sf "${{ needs.deploy-production.outputs.app-url }}/ready" | jq .
+
+  # ──────────────────────────────────────────────────────────────────
+  # JOB 6 — Ingest Prometheus metrics into Dynatrace
+  # ──────────────────────────────────────────────────────────────────
+  ingest-metrics:
+    name: 📊 Ingest Metrics → Dynatrace
+    runs-on: ubuntu-latest
+    needs: [deploy-production]
+    if: always() && needs.deploy-production.result == 'success'
+
+    steps:
+      - name: Fetch and ingest Prometheus metrics
+        run: |
+          METRICS_URL="https://devops-api-phillk8s-dev.apps.rm1.0a51.p1.openshiftapps.com/metrics"
+
+          # Fetch raw Prometheus metrics
+          RAW=$(curl -sf "$METRICS_URL")
+
+          # Extract http_requests_total (sum all status labels)
+          HTTP_TOTAL=$(echo "$RAW" | grep '^http_requests_total{' | awk -F' ' '{sum += $NF} END {print sum+0}')
+
+          # Extract rabbitmq_connection_status
+          RABBITMQ_STATUS=$(echo "$RAW" | grep '^rabbitmq_connection_status ' | awk '{print $NF}')
+          RABBITMQ_STATUS=${RABBITMQ_STATUS:-0}
+
+          echo "http_requests_total=$HTTP_TOTAL"
+          echo "rabbitmq_connection_status=$RABBITMQ_STATUS"
+
+          # Build metrics ingest payload (Dynatrace line protocol)
+          PAYLOAD="devops.api.http_requests_total,environment=production $HTTP_TOTAL
+          devops.api.rabbitmq_connection_status,environment=production $RABBITMQ_STATUS"
+
+          curl -sf -X POST "${{ secrets.DYNATRACE_ENV_URL }}/api/v2/metrics/ingest" \
+            -H "Authorization: Api-Token ${{ secrets.DYNATRACE_API_TOKEN }}" \
+            -H "Content-Type: text/plain" \
+            --data-binary "$PAYLOAD"
+
+          echo "✅ Metrics ingested successfully"
